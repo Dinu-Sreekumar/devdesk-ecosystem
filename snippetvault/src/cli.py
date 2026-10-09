@@ -163,3 +163,16 @@ def delete(
     else:
         console.print(f"[red]Error:[/red] Snippet #{snippet_id} not found.")
         raise typer.Exit(code=1)
+
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Bind host address"),
+    port: int = typer.Option(8765, "--port", "-p", help="Bind port number"),
+    reload: bool = typer.Option(False, "--reload", "-r", help="Enable auto-reload for development")
+):
+    """
+    Launch the background SnippetVault REST API daemon.
+    """
+    import uvicorn
+    console.print(f"[green]Starting SnippetVault daemon on http://{host}:{port}...[/green]")
+    uvicorn.run("snippetvault.src.server:app", host=host, port=port, reload=reload)
