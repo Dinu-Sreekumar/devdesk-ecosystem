@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 
 
@@ -58,3 +58,27 @@ class SnippetResponse(BaseModel):
     session_id: Optional[str] = None
     created_at: str
     updated_at: str
+
+# ---------------------------------------------------------------------------
+# NetWatch Contracts
+# ---------------------------------------------------------------------------
+
+class ProcessInfo(BaseModel):
+    """Process details bound to a listening port."""
+    name: str
+    pid: Optional[int] = None
+    user: Optional[str] = None
+
+
+class PortStatusResponse(BaseModel):
+    """Response payload for GET /api/v1/ports/{port}."""
+    port: int
+    in_use: bool
+    process: Optional[ProcessInfo] = None
+
+
+class DiagnosticsResponse(BaseModel):
+    """Response payload for GET /api/v1/diagnostics."""
+    wan: Dict[str, Any]
+    active_listeners_count: int
+    listeners: List[Dict[str, Any]]
