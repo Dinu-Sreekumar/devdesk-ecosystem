@@ -1,10 +1,10 @@
 # DevDesk Local Ecosystem
 
-[![Platform](https://img.shields.io/badge/Platform-Linux%20x86__64-informational.svg?style=flat-square&logo=linux)](https://github.com/Dinu-Sreekumar/devdesk-ecosystem)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/Release-v0.1.0-brightgreen.svg?style=flat-square)](https://github.com/Dinu-Sreekumar/devdesk-ecosystem/releases)
-[![Architecture](https://img.shields.io/badge/Architecture-Decoupled%203--Tier-orange.svg?style=flat-square)](docs/cli-reference.md)
-[![Status](https://img.shields.io/badge/Status-Production%20Ready-success.svg?style=flat-square)](#)
+[![Platform](https://img.shields.io/badge/platform-Linux_x86__64-informational?style=flat-square&logo=linux)](https://github.com/Dinu-Sreekumar/devdesk-ecosystem)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![Version](https://img.shields.io/badge/release-v0.1.0-brightgreen?style=flat-square)](https://github.com/Dinu-Sreekumar/devdesk-ecosystem/releases)
+[![Architecture](https://img.shields.io/badge/architecture-Decoupled_3--Tier-orange?style=flat-square)](docs/cli-reference.md)
+[![Status](https://img.shields.io/badge/status-ready-success?style=flat-square)](https://github.com/Dinu-Sreekumar/devdesk-ecosystem)
 
 > **DevDesk Local Ecosystem** is a decoupled, developer-first productivity and network diagnostic suite for Linux workstations. Built from the ground up for extreme speed (<5ms local CLI execution), zero cloud dependencies, and resilient POSIX compliance.
 
