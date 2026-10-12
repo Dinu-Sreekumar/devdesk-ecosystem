@@ -29,7 +29,7 @@ flowchart TD
 
     subgraph STORAGE ["Local Storage: ~/.local/share/devdesk/"]
         DB_V[("snippets.db (SQLite WAL)")]
-        DB_W[("sessions.db (SQLite WAL)")]
+        DB_W[("workpulse.db (SQLite WAL)")]
     end
 
     subgraph DAEMONS ["Optional Daemon Layer: Loopback HTTP"]
@@ -133,7 +133,7 @@ Need only one specific tool? Install standalone binaries independently:
 ---
 
 ### NetWatch (`netwatch`)
-**NetWatch** is a high-speed network diagnostics utility and REST service engineered to eliminate developer friction around conflicting ports and silent connection drops. It combines non-blocking raw TCP socket handshakes with Linux procfs process attribution to pinpoint the exact PID, executable name, and owner holding a port (such as Docker, Node.js, or PostgreSQL) without requiring root permissions. Featuring deterministic Unix exit codes (`0` for open, `1` for closed, `2` for error) and a non-privileged WAN latency ping mechanism, NetWatch serves as an indispensable tool for terminal debugging and automated CI/CD readiness checks.
+**NetWatch** is a high-speed network diagnostics utility and REST service engineered to eliminate developer friction around conflicting ports and silent connection drops. It combines non-blocking raw TCP socket handshakes with Linux procfs process attribution to pinpoint the exact PID, executable name, and owner holding a port (such as Docker, Node.js, or PostgreSQL) without requiring root permissions. Featuring deterministic Unix exit codes (`0` for free/available, `1` for in-use/occupied) and a non-privileged WAN latency ping mechanism, NetWatch serves as an indispensable tool for terminal debugging and automated CI/CD readiness checks.
 * **[Read Full NetWatch Documentation](docs/netwatch.md)**
 
 ---
@@ -163,9 +163,10 @@ netwatch scan
 netwatch ping
 
 # WorkPulse
-workpulse start 25 --tag refactor
+workpulse start "Backend Refactor" --duration 25 --tag refactor
 workpulse peers
 workpulse stats
+workpulse log
 ```
 
 ---
