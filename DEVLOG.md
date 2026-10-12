@@ -70,3 +70,14 @@ This journal documents real engineering hurdles, root causes, and architectural 
 * **Root Cause:** `<` and `>` in Bash are input/output redirection operators. `<SESSION_ID>` instructed the shell to open a file named `SESSION_ID` as stdin, colliding with the piped stdin stream.
 * **Resolution:** Substituted the active SQLite session identifier string (`20261011-d1aebe`) in place of the documentation placeholder.
 * **Key Takeaway:** In CLI manuals, use `$SESSION_ID` or replace `<...>` placeholders with actual string values to prevent shell redirection errors.
+
+---
+
+### [2026-10-13] - Uvicorn Dynamic String Import Failure in Frozen PyInstaller Binaries
+* **Symptoms:** Running `vault serve` or `netwatch serve` exited immediately with:
+  ```text
+  ERROR: Error loading ASGI app. Could not import module "snippetvault.src.server".
+  ```
+* **Root Cause:** When `uvicorn.run("snippetvault.src.server:app", ...)` is called with a string import path, Uvicorn dynamically invokes `importlib.import_module()`. Inside a frozen PyInstaller binary (and when not explicitly in `PYTHONPATH`), Python does not find a loose folder on disk corresponding to that string path.
+* **Resolution:** Updated both CLI `serve` commands to import and pass the instantiated FastAPI ASGI app object directly (`from snippetvault.src.server import app as server_app; uvicorn.run(server_app, ...)`).
+* **Key Takeaway:** In compiled or frozen Python environments, avoid passing string module paths to ASGI/WSGI servers; pass the instantiated application object directly.

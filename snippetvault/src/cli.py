@@ -65,12 +65,13 @@ def list_cmd(
     limit: int = typer.Option(20, "--limit", "-n", help="Maximum number of snippets to display"),
     tag: Optional[str] = typer.Option(None, "--tag", "-t", help="Filter by tag"),
     lang: Optional[str] = typer.Option(None, "--lang", "-l", help="Filter by language"),
-    session: Optional[str] = typer.Option(None, "--session", "-s", help="Filter by session ID")
+    session: Optional[str] = typer.Option(None, "--session", "-s", help="Filter by session ID"),
+    query: Optional[str] = typer.Option(None, "--query", "--search", "-q", help="Search substring across title, code, and tags")
 ):
     """
     List saved snippets in a formatted table.
     """
-    snippets = list_snippets(tag=tag, language=lang, session_id=session, limit=limit)
+    snippets = list_snippets(tag=tag, language=lang, session_id=session, query=query, limit=limit)
 
     if not snippets:
         console.print("[yellow]No snippets found matching criteria.[/yellow]")
@@ -174,5 +175,9 @@ def serve(
     Launch the background SnippetVault REST API daemon.
     """
     import uvicorn
+    from snippetvault.src.server import app as server_app
     console.print(f"[green]Starting SnippetVault daemon on http://{host}:{port}...[/green]")
-    uvicorn.run("snippetvault.src.server:app", host=host, port=port, reload=reload)
+    if reload:
+        uvicorn.run("snippetvault.src.server:app", host=host, port=port, reload=True)
+    else:
+        uvicorn.run(server_app, host=host, port=port)

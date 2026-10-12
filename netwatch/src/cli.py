@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 import typer
 from rich.console import Console
@@ -16,7 +17,9 @@ console = Console()
 
 @app.command()
 def check(
-    port: int = typer.Argument(..., help="TCP port number to inspect")
+    port: int = typer.Argument(..., help="TCP port number to inspect"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress terminal output (exit code 0 if free, 1 if in use)"),
+    json_output: bool = typer.Option(False, "--json", help="Output machine-parsable JSON envelope")
 ):
     """
     Inspect a single port.
@@ -24,22 +27,28 @@ def check(
     """
     info = get_port_process_info(port)
 
+    if json_output:
+        console.print(json.dumps(info))
+        raise typer.Exit(code=1 if info["in_use"] else 0)
+
     if not info["in_use"]:
-        console.print(f"[green]✓ Port {port} is FREE.[/green]")
+        if not quiet:
+            console.print(f"[green]✓ Port {port} is FREE.[/green]")
         raise typer.Exit(code=0)
 
     # Port is in use
-    proc = info["process"]
-    if proc:
-        name = proc.get("name", "unknown")
-        pid = proc.get("pid", "unknown")
-        user = proc.get("user", "unknown")
-        console.print(
-            f"[bold red]✗ Port {port} is IN USE[/bold red] by [yellow]{name}[/yellow] "
-            f"(PID: {pid}, User: {user})"
-        )
-    else:
-        console.print(f"[bold red]✗ Port {port} is IN USE[/bold red] (process details hidden)")
+    if not quiet:
+        proc = info["process"]
+        if proc:
+            name = proc.get("name", "unknown")
+            pid = proc.get("pid", "unknown")
+            user = proc.get("user", "unknown")
+            console.print(
+                f"[bold red]✗ Port {port} is IN USE[/bold red] by [yellow]{name}[/yellow] "
+                f"(PID: {pid}, User: {user})"
+            )
+        else:
+            console.print(f"[bold red]✗ Port {port} is IN USE[/bold red] (process details hidden)")
 
     raise typer.Exit(code=1)
 
@@ -47,13 +56,19 @@ def check(
 @app.command()
 def scan(
     start: int = typer.Option(3000, "--start", "-s", help="Start port of scan range"),
-    end: int = typer.Option(9000, "--end", "-e", help="End port of scan range")
+    end: int = typer.Option(9000, "--end", "-e", help="End port of scan range"),
+    json_output: bool = typer.Option(False, "--json", help="Output machine-parsable JSON list")
 ):
     """
     Scan and display all active listening TCP ports in the given range.
     """
-    console.print(f"[cyan]Scanning TCP listeners between ports {start} and {end}...[/cyan]")
+    if not json_output:
+        console.print(f"[cyan]Scanning TCP listeners between ports {start} and {end}...[/cyan]")
     listeners = scan_ports(start_port=start, end_port=end)
+
+    if json_output:
+        console.print(json.dumps(listeners))
+        return
 
     if not listeners:
         console.print(f"[green]No active TCP listeners found in range {start}-{end}.[/green]")
@@ -87,12 +102,17 @@ def scan(
 def ping(
     host: str = typer.Option("1.1.1.1", "--host", "-h", help="Target IP or hostname to ping"),
     port: int = typer.Option(53, "--port", "-p", help="Target TCP port (default: DNS 53)"),
-    timeout: float = typer.Option(1.0, "--timeout", "-t", help="Handshake timeout in seconds")
+    timeout: float = typer.Option(1.0, "--timeout", "-t", help="Handshake timeout in seconds"),
+    json_output: bool = typer.Option(False, "--json", help="Output machine-parsable JSON envelope")
 ):
     """
     Verify external internet connectivity and measure handshake latency.
     """
     result = check_wan_latency(host=host, port=port, timeout=timeout)
+
+    if json_output:
+        console.print(json.dumps(result))
+        raise typer.Exit(code=0 if result["reachable"] else 1)
 
     if result["reachable"]:
         ms = result["latency_ms"]
@@ -113,5 +133,9 @@ def serve(
     Launch the background NetWatch REST API daemon.
     """
     import uvicorn
+    from netwatch.src.server import app as server_app
     console.print(f"[green]Starting NetWatch daemon on http://{host}:{port}...[/green]")
-    uvicorn.run("netwatch.src.server:app", host=host, port=port, reload=reload)
+    if reload:
+        uvicorn.run("netwatch.src.server:app", host=host, port=port, reload=True)
+    else:
+        uvicorn.run(server_app, host=host, port=port)
