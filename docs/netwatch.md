@@ -65,22 +65,19 @@ latency_ms = (time.perf_counter() - start) * 1000.0
 
 NetWatch is purpose-built for shell scripting and CI/CD pipelines. Commands conform to strict Unix exit codes:
 
-| Exit Code | Meaning | Example Scenario |
-|:---:|:---|:---|
-| **`0`** | **Success / Open / Online** | `netwatch check 8080` found an active listener; `netwatch ping` resolved WAN. |
-| **`1`** | **Target Closed / Offline** | `netwatch check 8080` found no active listener; WAN handshake timed out. |
-| **`2`** | **Execution Error** | Invalid port number (e.g., `999999`), network interface down, or syntax error. |
+| Command | Exit Code `0` | Exit Code `1` |
+|:---|:---|:---|
+| **`netwatch check <port>`** | **Port is FREE** (Available to bind) | **Port is IN USE** (Occupied by another process) |
+| **`netwatch ping`** | **Target REACHABLE** (WAN connection OK) | **Target UNREACHABLE** (Connection timed out) |
 
 ### Shell Pipeline Example:
 ```bash
-# Block until backend service on 8000 is ready (up to 30s)
-for i in {1..30}; do
-  if netwatch check 8000 --quiet; then
-    echo "Backend is ready!"
-    break
-  fi
+# Block until port 8000 is free before starting dev server
+until netwatch check 8000 --quiet; do
+  echo "Waiting for port 8000 to be freed..."
   sleep 1
 done
+npm run dev
 ```
 
 ---
@@ -99,47 +96,73 @@ NetWatch includes an embedded FastAPI daemon mode (`netwatch serve`) allowing pe
 }
 ```
 
-### `GET /api/v1/ports`
-Returns a comprehensive list of all active TCP/UDP listeners on the machine.
+### `GET /api/v1/ports/{port}`
+Performs a targeted inspection of a specific TCP port and returns process details.
+* **Response (200 OK):**
+```json
+{
+  "port": 8765,
+  "in_use": true,
+  "process": {
+    "name": "vault",
+    "pid": 42110,
+    "user": "developer"
+  }
+}
+```
+
+### `GET /api/v1/scan`
+Discovers all active listening TCP ports within a given port range.
 * **Query Parameters:**
-  * `kind` (string, default `"inet"`): Filter socket kinds (`"inet"`, `"tcp"`, `"udp"`).
+  * `start` (int, default `3000`): Start port of scan range.
+  * `end` (int, default `9000`): End port of scan range.
 * **Response (200 OK):**
 ```json
 [
   {
     "port": 8765,
-    "is_open": true,
-    "pid": 42110,
-    "process_name": "vault",
-    "cmdline": "vault serve --port 8765",
-    "username": "developer",
-    "host": "127.0.0.1"
+    "ip": "0.0.0.0",
+    "process": {
+      "name": "vault",
+      "pid": 42110,
+      "user": "developer"
+    }
   },
   {
-    "port": 5432,
-    "is_open": true,
-    "pid": 1180,
-    "process_name": "postgres",
-    "cmdline": "/usr/lib/postgresql/16/bin/postgres",
-    "username": "postgres",
-    "host": "127.0.0.1"
+    "port": 8766,
+    "ip": "0.0.0.0",
+    "process": {
+      "name": "netwatch",
+      "pid": 42115,
+      "user": "developer"
+    }
   }
 ]
 ```
 
-### `GET /api/v1/ports/{port}`
-Performs a targeted inspection of a specific TCP port.
-* **Response (200 OK):** Returns single `PortStatus` object.
-* **Response (400 Bad Request):** Returned if the port is out of range (`1-65535`).
-
-### `GET /api/v1/ping`
-Tests external internet connectivity and measures round-trip latency.
+### `GET /api/v1/diagnostics`
+Performs a full system network diagnosis, combining WAN ping latency with active local listeners.
 * **Response (200 OK):**
 ```json
 {
-  "online": true,
-  "latency_ms": 14.82,
-  "target": "1.1.1.1:53"
+  "wan": {
+    "host": "1.1.1.1",
+    "port": 53,
+    "reachable": true,
+    "latency_ms": 14.82
+  },
+  "active_listeners_count": 2,
+  "listeners": [
+    {
+      "port": 8765,
+      "ip": "0.0.0.0",
+      "process": {
+        "name": "vault",
+        "pid": 42110,
+        "user": "developer"
+      }
+    }
+  ]
 }
 ```
 
@@ -154,15 +177,16 @@ Inspect the PID blocking your development server and terminate it cleanly:
 netwatch check 3000
 
 # Scripted process termination:
-PID=$(netwatch check 3000 --json | jq -r '.pid')
+PID=$(netwatch check 3000 --json | jq -r '.process.pid')
 [ "$PID" != "null" ] && kill -15 "$PID"
 ```
 
 ### 5.2 Pre-Flight Deployment Hook
-Verify that required dependencies (PostgreSQL on 5432 and Redis on 6379) are reachable before running integration test suites:
+Verify that required dependencies (PostgreSQL on 5432 and Redis on 6379) are active before running integration test suites (if `netwatch check` returns code `0`, the port is free, meaning the service is offline):
 ```bash
-netwatch check 5432 --quiet || { echo "Postgres not running!"; exit 1; }
-netwatch check 6379 --quiet || { echo "Redis not running!"; exit 1; }
+# If port is free (exit code 0), fail fast because the service is offline
+netwatch check 5432 --quiet && { echo "Postgres not running on port 5432 (port is free)!"; exit 1; }
+netwatch check 6379 --quiet && { echo "Redis not running on port 6379 (port is free)!"; exit 1; }
 pytest tests/
 ```
 

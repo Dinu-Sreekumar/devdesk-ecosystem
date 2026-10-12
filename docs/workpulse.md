@@ -1,5 +1,5 @@
 # WorkPulse Technical Documentation
-**Utility:** `workpulse` | **Service Subsystem:** Focus Tracking & Local Peer Orchestration | **Storage:** `$XDG_DATA_HOME/devdesk/sessions.db`
+**Utility:** `workpulse` | **Service Subsystem:** Focus Tracking & Local Peer Orchestration | **Storage:** `$XDG_DATA_HOME/devdesk/workpulse.db`
 
 ---
 
@@ -28,7 +28,7 @@ A core architectural principle of the DevDesk ecosystem is **Decoupled Autonomy*
                      v (Fail-Silent)  v (Fail-Silent)  v
             +----------------+   +----------------+   +-------------------+
             |  SnippetVault  |   |    NetWatch    |   | Local SQLite      |
-            |   (:8765)      |   |   (:8766)      |   | (sessions.db)     |
+            |   (:8765)      |   |   (:8766)      |   | (workpulse.db)    |
             +----------------+   +----------------+   +-------------------+
             [Online: Link Code]  [Online: Active]     [Always Available]
             [Offline: Ignored]   [Offline: Ignored]   [Direct Disk Access]
@@ -38,14 +38,15 @@ A core architectural principle of the DevDesk ecosystem is **Decoupled Autonomy*
 When WorkPulse checks peer states (`workpulse peers` or during session summary reports), it uses `httpx` with an aggressive 300ms timeout:
 
 ```python
-try:
-    with httpx.Client(timeout=0.3) as client:
-        resp = client.get(f"http://127.0.0.1:{port}/health")
-        if resp.status_code == 200:
-            return PeerHealth(name=name, status="online", latency_ms=...)
-except (httpx.ConnectError, httpx.TimeoutException):
-    pass
-return PeerHealth(name=name, status="offline", latency_ms=None)
+TIMEOUT_SECONDS = 0.3  # Hard 300ms budget per contract
+
+def is_service_online(base_url: str) -> bool:
+    """Quick 300ms health probe to check if a peer service is currently running."""
+    try:
+        response = httpx.get(f"{base_url}/health", timeout=TIMEOUT_SECONDS)
+        return response.status_code == 200
+    except (httpx.RequestError, httpx.TimeoutException):
+        return False
 ```
 
 #### Why 300 Milliseconds?
@@ -59,7 +60,7 @@ return PeerHealth(name=name, status="offline", latency_ms=None)
 
 WorkPulse adheres to the **POSIX XDG Base Directory Specification**, persisting session history in:
 ```text
-$XDG_DATA_HOME/devdesk/sessions.db  (defaults to ~/.local/share/devdesk/sessions.db)
+$XDG_DATA_HOME/devdesk/workpulse.db  (defaults to ~/.local/share/devdesk/workpulse.db)
 ```
 
 ### 3.1 SQLite Schema & State Transitions
@@ -68,17 +69,13 @@ Persistence uses standard SQLite with Write-Ahead Logging (`PRAGMA journal_mode 
 ```sql
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,                       -- Format: YYYYMMDD-xxxxxx (e.g. 20261011-8f4b12)
-    tag TEXT NOT NULL DEFAULT 'general',       -- Work stream tag (e.g. "auth", "refactor")
+    title TEXT NOT NULL,                       -- Focus sprint title/goal
     duration_minutes INTEGER NOT NULL,         -- Planned duration
-    actual_seconds INTEGER DEFAULT 0,          -- Recorded focus time
-    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    started_at DATETIME NOT NULL,
     ended_at DATETIME DEFAULT NULL,
-    status TEXT NOT NULL DEFAULT 'active',     -- 'active' | 'completed' | 'interrupted'
-    notes TEXT DEFAULT ''
+    status TEXT NOT NULL,                      -- 'ACTIVE' | 'COMPLETED' | 'ABORTED'
+    metadata_json TEXT DEFAULT '{}'            -- Stores active_dev_ports, tag, notes, snippet_count
 );
-
-CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status);
-CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
 ```
 
 ### 3.2 State Machine Lifecycle
@@ -90,37 +87,34 @@ CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
              |     ACTIVE      |  (Timer countdown running)
              +-----------------+
                /             \
- (Timer expires)             (User presses Ctrl+C)
+ (Timer expires)             (User presses Ctrl+C / workpulse stop)
              /                 \
             v                   v
    +-----------------+  +-----------------+
-   |    COMPLETED    |  |   INTERRUPTED   |
+   |    COMPLETED    |  |     ABORTED     |
    +-----------------+  +-----------------+
-   (Actual = Planned)   (Actual = Elapsed seconds)
 ```
 
-* **Graceful Interrupt Handling:** If a developer cancels a session via `Ctrl+C` (`SIGINT`), the signal is caught gracefully. WorkPulse records the exact elapsed seconds, records status as `interrupted`, and commits the record to SQLite before exiting with code `0`.
+* **Graceful Interrupt Handling:** If a developer cancels a session via `Ctrl+C` (`SIGINT`) or `workpulse stop --abort`, the signal is caught gracefully. WorkPulse records `ended_at`, queries SnippetVault for snippets stashed during the sprint, sets status to `ABORTED`, and commits the record to SQLite before exiting cleanly.
 
 ---
 
 ## 4. Rich Live Terminal Visualization
 
-During active focus blocks, WorkPulse renders a non-flickering, terminal-adaptive dashboard using `rich.live.Live`:
+During active focus blocks, WorkPulse renders a non-flickering, terminal-adaptive dashboard panel using `rich.live.Live` and `rich.panel.Panel`:
 
 ```text
-======================================================
-  WorkPulse Active Sprint: [refactor-auth]
-  Session ID: 20261011-8f4b12
-======================================================
-
-  [############################------------] 70%
-  Remaining Time: 07:30 / 25:00
-
-  Local Ecosystem Status:
-  ● SnippetVault (:8765): Online (2 snippets captured)
-  ● NetWatch     (:8766): Online (4 ports listening)
-
-  Press [Ctrl+C] to pause or cancel sprint.
+╭─────────────────────── WorkPulse Focus Session ───────────────────────╮
+│                                                                       │
+│                       Focus: PROJ-104: Auth Refactor                  │
+│                          Session: 20261011-8f4b12                     │
+│                  Dev Server Running on port(s): 3000, 8000            │
+│                                                                       │
+│                                 24:45                                 │
+│                                                                       │
+│                      Press Ctrl+C to stop session                     │
+│                                                                       │
+╰───────────────────────────────────────────────────────────────────────╯
 ```
 
 ---
@@ -130,7 +124,7 @@ During active focus blocks, WorkPulse renders a non-flickering, terminal-adaptiv
 ### 5.1 Deep Work Pomodoro Block
 Start a standard 25-minute focus session tagged with your active ticket:
 ```bash
-workpulse start 25 --tag PROJ-104
+workpulse start "PROJ-104: Auth Refactor" --duration 25 --tag auth
 ```
 
 ### 5.2 Ecosystem Peer Diagnostics
@@ -138,14 +132,14 @@ Check whether peer microservices are listening on loopback:
 ```bash
 workpulse peers
 ```
-* **Output:** Formats peer status, latency, and service endpoints in a Rich table.
+* **Output:** Formats peer status, port, and endpoint in a Rich table.
 
 ### 5.3 Productivity Analytics
 Analyze historical deep-work metrics across your local machine:
 ```bash
 workpulse stats
 ```
-* **Output:** Total focus hours, completion percentage, most frequent tags, and stashed code snippets.
+* **Output:** Total focus sessions, completed vs aborted counts, completion rate percentage, total focus time (minutes and hours), and stashed code snippets linked.
 
 ### 5.4 Cross-Tool Context Linking
 When WorkPulse and SnippetVault run together, code stashed during a sprint is automatically tagged with the active session ID:

@@ -1,6 +1,6 @@
 # DevDesk Ecosystem: Unified CLI Reference
 
-This document serves as the master command-line reference for the **DevDesk Local Ecosystem**. It covers command syntax, flags, arguments, exit codes, and shell pipeline patterns for all three utilities:
+This document serves as the master command-line reference for the **DevDesk Local Ecosystem**. It covers exact command syntax, arguments, options, flags, exit codes, and shell pipeline recipes across all three utilities:
 * [`vault`](snippetvault.md) — Offline Knowledge Stash
 * [`netwatch`](netwatch.md) — Port & Network Health Inspector
 * [`workpulse`](workpulse.md) — Focus Tracking & Peer Orchestrator
@@ -9,22 +9,25 @@ This document serves as the master command-line reference for the **DevDesk Loca
 
 ## 1. Master Command Index
 
-| Utility | Command | Description | Default Port / Scope |
+| Utility | Command | Description | Default Scope / Protocol |
 |:---|:---|:---|:---|
 | `vault` | `vault save` | Store a snippet from argument or stdin | Direct SQLite |
-| `vault` | `vault list` | Search and display stashed snippets | Direct SQLite |
+| `vault` | `vault list` | Filter and list stashed snippets in a table | Direct SQLite |
 | `vault` | `vault get` | Render syntax-highlighted snippet | Direct SQLite |
+| `vault` | `vault search` | Substring search across title, code, and tags | Direct SQLite |
 | `vault` | `vault delete` | Remove a snippet by ID | Direct SQLite |
 | `vault` | `vault serve` | Start background REST API daemon | Port `8765` |
-| `netwatch` | `netwatch check` | Probe single port listener & owner | Direct TCP / Procfs |
-| `netwatch` | `netwatch scan` | Table of all listening TCP/UDP ports | Kernel Procfs |
+| `netwatch` | `netwatch check` | Probe single port listener & process owner | Direct TCP / Procfs |
+| `netwatch` | `netwatch scan` | Scan range of listening TCP ports | Kernel Procfs |
 | `netwatch` | `netwatch ping` | Measure WAN round-trip latency | Public DNS TCP |
 | `netwatch` | `netwatch serve` | Start network inspector REST API | Port `8766` |
 | `workpulse` | `workpulse start` | Begin timed Pomodoro focus sprint | Live TUI / SQLite |
 | `workpulse` | `workpulse status` | View active or latest session state | Direct SQLite |
-| `workpulse` | `workpulse history` | List historical focus sessions | Direct SQLite |
-| `workpulse` | `workpulse stats` | Aggregate focus time & analytics | Direct SQLite |
-| `workpulse` | `workpulse peers` | Probe peer daemon health (:8765, :8766)| HTTP (300ms timeout)|
+| `workpulse` | `workpulse stop` | Manually end active session & link snippets | Direct SQLite |
+| `workpulse` | `workpulse log` | View table of historical focus sessions | Direct SQLite |
+| `workpulse` | `workpulse history` | Alias for `workpulse log` | Direct SQLite |
+| `workpulse` | `workpulse stats` | Aggregate focus time & productivity analytics | Direct SQLite |
+| `workpulse` | `workpulse peers` | Probe peer daemon health (:8765, :8766) | HTTP (300ms timeout) |
 
 ---
 
@@ -48,30 +51,30 @@ vault save [TITLE] [CODE] [OPTIONS]
   * `-l, --lang TEXT`: Syntax highlighting language (e.g. `python`, `bash`, `sql`, `json`, `rust`). *(Default: `text`)*
   * `-t, --tag TEXT`: Comma-delimited list of tags for filtering (e.g. `docker,deploy,db`). *(Default: `""`)*
   * `-s, --session TEXT`: WorkPulse session ID to link snippet with an active sprint. *(Default: `None`)*
-* **Piping Mechanics:**
+* **Piping Examples:**
   ```bash
   # Piping directly from stdout
   docker inspect container_name | vault save "Container Config" --lang json --tag docker
 
-  # Stashing terminal history
-  history | tail -n 25 | vault save "Recent Git Sequence" --lang bash --tag git
+  # Stashing terminal history (using single quotes to prevent shell history expansion)
+  history | tail -n 25 | vault save 'Recent Git Sequence' --lang bash --tag git
   ```
 
 ---
 
 ### 2.2 `vault list`
-Search, filter, and display stored snippets in a terminal table.
+Filter and display stored snippets in a formatted terminal table.
 
 ```bash
 vault list [OPTIONS]
 ```
 
 * **Options:**
+  * `-n, --limit INTEGER`: Maximum number of snippets to display. *(Default: `20`)*
   * `-t, --tag TEXT`: Filter by tag substring.
   * `-l, --lang TEXT`: Filter by exact language identifier.
   * `-s, --session TEXT`: Filter by associated WorkPulse session ID.
-  * `-q, --search TEXT`: Full-text substring search matching title, tags, or code content.
-  * `-n, --limit INTEGER`: Maximum snippets to display. *(Default: `20`)*
+  * `-q, --query, --search TEXT`: Substring search matching title, tags, or code content.
 
 ---
 
@@ -85,17 +88,29 @@ vault get [ID] [OPTIONS]
 * **Arguments:**
   * `ID` *(integer, required)*: Primary key ID of the snippet.
 * **Options:**
-  * `--raw / --no-raw`: Output raw snippet code without styling or borders (useful for piping into clipboard or shell execution). *(Default: `--no-raw`)*
+  * `-r, --raw / --no-raw`: Output raw snippet code without styling or borders (useful for piping into clipboard or shell execution). *(Default: `--no-raw`)*
 
 ```bash
 # Copy snippet code directly to clipboard on Linux
-vault get 4 --raw | xclip -selection clipboard
+vault get 1 --raw | xclip -selection clipboard
 ```
 
 ---
 
-### 2.4 `vault delete`
-Delete a snippet from the database.
+### 2.4 `vault search`
+Dedicated text search command across title, code, and tags.
+
+```bash
+vault search [QUERY]
+```
+
+* **Arguments:**
+  * `QUERY` *(string, required)*: Search term across title, code, and tags.
+
+---
+
+### 2.5 `vault delete`
+Delete a snippet from the database by ID.
 
 ```bash
 vault delete [ID] [OPTIONS]
@@ -108,17 +123,17 @@ vault delete [ID] [OPTIONS]
 
 ---
 
-### 2.5 `vault serve`
-Run the SnippetVault daemon exposing the REST API.
+### 2.6 `vault serve`
+Run the SnippetVault background REST API daemon.
 
 ```bash
 vault serve [OPTIONS]
 ```
 
 * **Options:**
-  * `--host TEXT`: Bind host. *(Default: `127.0.0.1`)*
+  * `-h, --host TEXT`: Bind host address. *(Default: `127.0.0.1`)*
   * `-p, --port INTEGER`: Listening TCP port. *(Default: `8765`)*
-  * `--reload`: Enable development hot reload. *(Default: `False`)*
+  * `-r, --reload`: Enable auto-reload for development. *(Default: `False`)*
 
 ---
 
@@ -128,19 +143,18 @@ vault serve [OPTIONS]
 Usage: netwatch [OPTIONS] COMMAND [ARGS]...
 ```
 
-### 3.1 Exit Codes Matrix
-All `netwatch` inspection commands adhere to standardized Unix exit codes:
+### 3.1 Exit Codes Specification
+All `netwatch check` and `netwatch ping` commands conform to deterministic Unix exit codes:
 
 | Code | Status | Meaning |
 |:---:|:---|:---|
-| **`0`** | **Active / Success** | Port is open / Internet connection established. |
-| **`1`** | **Inactive / Unreachable** | Port is closed / WAN target unreachable. |
-| **`2`** | **Error** | Invalid argument, socket error, or insufficient system privileges. |
+| **`0`** | **Available / Success** | Port is FREE (for `check`) / Target is REACHABLE (for `ping`). |
+| **`1`** | **In Use / Unreachable** | Port is IN USE (for `check`) / Target is UNREACHABLE (for `ping`). |
 
 ---
 
 ### 3.2 `netwatch check`
-Inspect a specific port for an active TCP listener and identify the process owner.
+Inspect a specific port for an active listener and attribute the process owner.
 
 ```bash
 netwatch check [PORT] [OPTIONS]
@@ -149,18 +163,16 @@ netwatch check [PORT] [OPTIONS]
 * **Arguments:**
   * `PORT` *(integer, required)*: Port number between `1` and `65535`.
 * **Options:**
-  * `-h, --host TEXT`: Target host to probe. *(Default: `127.0.0.1`)*
-  * `-t, --timeout FLOAT`: Connection timeout in seconds. *(Default: `1.0`)*
-  * `-q, --quiet`: Suppress visual terminal output; exit with code `0` (open) or `1` (closed).
+  * `-q, --quiet`: Suppress terminal output; exit with code `0` (port is free) or `1` (port is in use).
   * `--json`: Output machine-parsable JSON envelope.
 
 ```bash
-# Check if Vite dev server is running on 5173
-netwatch check 5173
+# Check port 8080 visually
+netwatch check 8080
 
-# CI script waiting for database
-until netwatch check 5432 --quiet; do
-  echo "Waiting for PostgreSQL..."
+# Scripted readiness check (block until port is free)
+until netwatch check 8080 --quiet; do
+  echo "Waiting for port 8080 to become available..."
   sleep 1
 done
 ```
@@ -168,28 +180,30 @@ done
 ---
 
 ### 3.3 `netwatch scan`
-Scan all active TCP and UDP sockets on the host system.
+Scan and display active listening TCP sockets in a given port range.
 
 ```bash
 netwatch scan [OPTIONS]
 ```
 
 * **Options:**
-  * `-k, --kind TEXT`: Socket protocol filter: `inet` (all IPv4/IPv6), `tcp`, or `udp`. *(Default: `inet`)*
+  * `-s, --start INTEGER`: Start port of scan range. *(Default: `3000`)*
+  * `-e, --end INTEGER`: End port of scan range. *(Default: `9000`)*
   * `--json`: Output raw list of listeners in JSON format.
 
 ---
 
 ### 3.4 `netwatch ping`
-Test public internet connectivity using a non-privileged TCP handshake against authoritative DNS.
+Measure external internet connectivity using a non-privileged TCP handshake against authoritative DNS.
 
 ```bash
 netwatch ping [OPTIONS]
 ```
 
 * **Options:**
-  * `-t, --target TEXT`: Destination endpoint in `host:port` format. *(Default: `1.1.1.1:53`)*
-  * `--timeout FLOAT`: Timeout in seconds. *(Default: `2.0`)*
+  * `-h, --host TEXT`: Target IP or hostname to ping. *(Default: `1.1.1.1`)*
+  * `-p, --port INTEGER`: Target TCP port. *(Default: `53`)*
+  * `-t, --timeout FLOAT`: Connection timeout in seconds. *(Default: `1.0`)*
   * `--json`: Output JSON envelope with latency.
 
 ---
@@ -202,8 +216,9 @@ netwatch serve [OPTIONS]
 ```
 
 * **Options:**
-  * `--host TEXT`: Bind host. *(Default: `127.0.0.1`)*
-  * `-p, --port INTEGER`: Port number. *(Default: `8766`)*
+  * `-h, --host TEXT`: Bind host address. *(Default: `127.0.0.1`)*
+  * `-p, --port INTEGER`: Listening TCP port. *(Default: `8766`)*
+  * `-r, --reload`: Enable auto-reload for development. *(Default: `False`)*
 
 ---
 
@@ -217,28 +232,30 @@ Usage: workpulse [OPTIONS] COMMAND [ARGS]...
 Initiate a focused deep-work Pomodoro sprint with terminal Live countdown.
 
 ```bash
-workpulse start [MINUTES] [OPTIONS]
+workpulse start [TITLE] [OPTIONS]
 ```
 
 * **Arguments:**
-  * `MINUTES` *(integer, optional)*: Sprint duration in minutes. *(Default: `25`)*
+  * `TITLE` *(string, required)*: Goal or headline for this focus block.
 * **Options:**
-  * `-t, --tag TEXT`: Category tag for the sprint (e.g. `refactor`, `frontend`, `bugfix`). *(Default: `general`)*
+  * `-d, --duration INTEGER`: Sprint duration in minutes. *(Default: `25`)*
+  * `-p, --ports TEXT`: Comma-separated dev ports to probe via NetWatch. *(Default: `"8000,3000,5173,8080"`)*
+  * `-t, --tag TEXT`: Category tag for this session. *(Default: `general`)*
   * `-n, --notes TEXT`: Contextual notes for the session. *(Default: `""`)*
 * **Keyboard Controls:**
-  * Press `Ctrl+C` (`SIGINT`) at any time to gracefully halt the session. WorkPulse records actual elapsed time, marks the session as `interrupted`, and commits the record to SQLite.
+  * Press `Ctrl+C` (`SIGINT`) at any time to gracefully halt the session. WorkPulse catches the signal, queries SnippetVault for code created during this block, records status as `ABORTED`, and finalizes the record in SQLite.
 
 ---
 
 ### 4.2 `workpulse status`
-Display the state of the active session or the most recent completed sprint.
+Display the details of the currently active session.
 
 ```bash
 workpulse status [OPTIONS]
 ```
 
 * **Options:**
-  * `--id-only`: Print only the active/latest session ID (ideal for shell subshells).
+  * `--id-only`: Print only the active session ID (or latest session ID if none active). Useful for shell scripting and subshells.
   * `--json`: Output session data in JSON format.
 
 ```bash
@@ -248,10 +265,23 @@ vault save "Auth fix" --session $(workpulse status --id-only)
 
 ---
 
-### 4.3 `workpulse history`
-Display recent focus sessions in a formatted table.
+### 4.3 `workpulse stop`
+Manually end an active session without waiting for the timer to expire.
 
 ```bash
+workpulse stop [OPTIONS]
+```
+
+* **Options:**
+  * `-a, --abort`: Mark session as `ABORTED` instead of `COMPLETED`.
+
+---
+
+### 4.4 `workpulse log` / `workpulse history`
+Display recent focus sessions in a formatted table. `history` is an alias for `log`.
+
+```bash
+workpulse log [OPTIONS]
 workpulse history [OPTIONS]
 ```
 
@@ -262,24 +292,26 @@ workpulse history [OPTIONS]
 
 ---
 
-### 4.4 `workpulse stats`
+### 4.5 `workpulse stats`
 Calculate aggregate productivity metrics across all stored sessions.
 
 ```bash
 workpulse stats [OPTIONS]
 ```
 
+* **Options:**
+  * `--json`: Output statistics in JSON format.
 * **Metrics Reported:**
-  * Total focus sessions completed
-  * Aggregate focus time (hours & minutes)
-  * Completion rate percentage
-  * Distribution by category tags
-  * Total code snippets stashed during focus blocks
+  * Total Focus Sessions
+  * Completed Sessions vs Aborted Sessions
+  * Completion Rate Percentage
+  * Total Focus Time (minutes & hours)
+  * Total Snippets Linked from SnippetVault
 
 ---
 
-### 4.5 `workpulse peers`
-Query the health and latency of peer DevDesk services over localhost HTTP.
+### 4.6 `workpulse peers`
+Probe the health of peer DevDesk services over localhost HTTP within a 300ms budget.
 
 ```bash
 workpulse peers [OPTIONS]
@@ -295,7 +327,7 @@ workpulse peers [OPTIONS]
 ### Recipe 1: Contextual Deep Work Session
 ```bash
 # 1. Start a 45-minute sprint
-workpulse start 45 --tag billing-api
+workpulse start "Billing API Refactor" -d 45 -t billing
 
 # 2. In another terminal, save a SQL migration tied to this sprint
 CURRENT_SPRINT=$(workpulse status --id-only)
@@ -305,14 +337,16 @@ cat migrations/001.sql | vault save "Billing schema migration" --lang sql --sess
 netwatch check 8080
 ```
 
-### Recipe 2: Automated Pre-Flight Check in Makefile or Shell
+### Recipe 2: Automated Pre-Flight Check in Shell Script
 ```bash
 #!/usr/bin/env bash
 set -e
 
 echo "Verifying local ecosystem services..."
-netwatch check 8765 --quiet || vault serve --port 8765 &
-netwatch check 8766 --quiet || netwatch serve --port 8766 &
+# If port is free (exit 0), start the background daemon:
+netwatch check 8765 --quiet && vault serve > /dev/null 2>&1 &
+netwatch check 8766 --quiet && netwatch serve > /dev/null 2>&1 &
+sleep 1
 
 echo "DevDesk services ready!"
 workpulse peers
