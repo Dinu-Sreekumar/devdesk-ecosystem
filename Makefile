@@ -11,6 +11,10 @@ UVICORN_FLAGS = --hidden-import=uvicorn.loops.auto \
 
 all: build
 
+$(PYINSTALLER):
+	@echo "--> Virtual environment or pyinstaller not found. Running setup..."
+	@$(MAKE) setup
+
 setup:
 	@echo "--> Creating virtual environment and installing dependencies..."
 	python3 -m venv .venv
@@ -21,15 +25,15 @@ setup:
 build: build-vault build-netwatch build-workpulse
 	@echo "\n=== All 3 DevDesk binaries built successfully in ./dist/ ==="
 
-build-vault:
+build-vault: $(PYINSTALLER)
 	@echo "--> Building vault binary..."
 	$(PYINSTALLER) --onefile --name vault --paths=. $(UVICORN_FLAGS) snippetvault/src/main.py
 
-build-netwatch:
+build-netwatch: $(PYINSTALLER)
 	@echo "--> Building netwatch binary..."
 	$(PYINSTALLER) --onefile --name netwatch --paths=. $(UVICORN_FLAGS) netwatch/src/main.py
 
-build-workpulse:
+build-workpulse: $(PYINSTALLER)
 	@echo "--> Building workpulse binary..."
 	$(PYINSTALLER) --onefile --name workpulse --paths=. workpulse/src/main.py
 
