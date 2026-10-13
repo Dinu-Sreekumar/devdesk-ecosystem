@@ -173,36 +173,54 @@ workpulse log
 
 ## 6. Building from Source
 
-If you are on an architecture other than `x86_64` (e.g. ARM/aarch64) or wish to contribute to DevDesk:
+If the pre-compiled `x86_64` binaries are incompatible with your system (e.g. ARM/aarch64, older glibc, macOS, or WSL1), you can build DevDesk natively from source on any platform with Python 3.10+.
 
 ### Prerequisites
-* Python 3.10+
-* `make` and `gcc`
-* Virtual environment (`venv`)
+* **Python 3.10+** with `pip` and `venv`
+* **`make`** (GNU Make)
+* **Linux/macOS/WSL2** (Windows native is not supported)
 
 ### Build Sequence
 ```bash
-# 1. Clone repository
+# 1. Clone the repository
 git clone https://github.com/Dinu-Sreekumar/devdesk-ecosystem.git
 cd devdesk-ecosystem
 
-# 2. Set up virtual environment and dependencies
+# 2. Create virtual environment and install all dependencies
 make setup
 
-# 3. Run the automated test suite
-make test
+# 3. Activate the virtual environment
+source .venv/bin/activate
 
-# 4. Compile standalone PyInstaller ELF binaries
+# 4. Compile standalone single-file binaries via PyInstaller
 make build
 
-# 5. Compiled executables are available in ./dist/
+# 5. Verify the compiled executables
 ./dist/vault --help
 ./dist/netwatch --help
 ./dist/workpulse --help
 
-# 6. Install compiled binaries locally
-./scripts/install.sh
+# 6. Install compiled binaries to ~/.local/bin/
+make install
 ```
+
+> [!TIP]
+> If you only want to **run without compiling** (no PyInstaller), you can execute the tools directly from source after `make setup`:
+> ```bash
+> source .venv/bin/activate
+> python3 -m snippetvault.src.main --help
+> python3 -m netwatch.src.main --help
+> python3 -m workpulse.src.main --help
+> ```
+
+### Troubleshooting Build Issues
+
+| Problem | Cause | Fix |
+|:---|:---|:---|
+| `ModuleNotFoundError` during build | Missing dependencies | Run `make setup` or `pip install -r requirements.txt` |
+| `EADDRINUSE` on `vault serve` / `netwatch serve` | Port already in use | Check with `netwatch check 8765` and stop the conflicting process |
+| `glibc` version mismatch on compiled binary | Binary compiled on a newer glibc | Rebuild from source on your machine with `make clean && make build` |
+| PyInstaller `--onefile` fails on macOS | Code signing or permissions | Run with `--windowed` disabled; see [PyInstaller macOS docs](https://pyinstaller.org/en/stable/usage.html) |
 
 ---
 

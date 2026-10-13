@@ -1,0 +1,22 @@
+# DevDesk Local Ecosystem: Python Dependencies
+# Install: pip install -r requirements.txt
+
+# CLI Framework & Terminal UI
+typer>=0.9.0
+rich>=13.0.0
+
+# HTTP Server (vault serve, netwatch serve)
+fastapi>=0.100.0
+uvicorn>=0.23.0
+
+# HTTP Client (workpulse peer queries)
+httpx>=0.24.0
+
+# Data Validation & Serialization
+pydantic>=2.0.0
+
+# System Diagnostics (netwatch process attribution)
+psutil>=5.9.0
+
+# Binary Compilation (build only)
+pyinstaller>=6.0.0
