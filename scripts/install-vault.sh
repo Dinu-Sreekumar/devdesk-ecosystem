@@ -86,6 +86,17 @@ else
         exit 1
     fi
 fi
+
+# Execution verification smoke test
+if ! "$DEST" --help >/dev/null 2>&1; then
+    echo -e "      ${RED}❌ Execution check failed for $BIN.${NC}"
+    echo -e "      ${YELLOW}Your system's C library appears incompatible with this pre-compiled binary.${NC}"
+    echo "      To build natively from source:"
+    echo "        git clone https://github.com/${REPO}.git"
+    echo "        cd devdesk-ecosystem && make setup && make build-vault"
+    echo "        cp dist/vault ~/.local/bin/"
+    exit 1
+fi
 echo ""
 
 # --- 3. PATH Verification ---

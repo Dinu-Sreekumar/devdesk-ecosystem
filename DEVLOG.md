@@ -81,3 +81,18 @@ This journal documents real engineering hurdles, root causes, and architectural 
 * **Root Cause:** When `uvicorn.run("snippetvault.src.server:app", ...)` is called with a string import path, Uvicorn dynamically invokes `importlib.import_module()`. Inside a frozen PyInstaller binary (and when not explicitly in `PYTHONPATH`), Python does not find a loose folder on disk corresponding to that string path.
 * **Resolution:** Updated both CLI `serve` commands to import and pass the instantiated FastAPI ASGI app object directly (`from snippetvault.src.server import app as server_app; uvicorn.run(server_app, ...)`).
 * **Key Takeaway:** In compiled or frozen Python environments, avoid passing string module paths to ASGI/WSGI servers; pass the instantiated application object directly.
+
+---
+
+### [2026-10-15] - glibc TLS Dialect Mismatch and GitHub Actions CI Resolution
+* **Symptoms:** Pre-compiled release binaries built on Fedora 44 failed on Linux Mint and Ubuntu LTS with:
+  ```text
+  [PYI-8304:ERROR] Failed to load Python shared library '.../libpython3.14.so.1.0':
+  /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_ABI_GNU2_TLS' not found
+  ```
+* **Root Cause:** In Linux ELF dynamic linking, binaries are forward-compatible but not backward-compatible. PyInstaller packs the host's `libpython3.x.so` dynamically linked against the build host's `glibc`. Building on Fedora 44 linked against `glibc 2.43` using GCC's GNU2 TLS dialect (`-mtls-dialect=gnu2`), which older stable glibc versions (e.g. Ubuntu/Mint LTS with glibc 2.35 or 2.39) do not possess.
+* **Resolution:** 
+  1. Migrated binary release generation to GitHub Actions (`.github/workflows/release.yml`) running on `ubuntu-22.04` (glibc 2.35), producing universal Linux x86_64 binaries forward-compatible with all modern distributions.
+  2. Enhanced `scripts/install.sh` and standalone installers with post-download execution smoke tests (`"$DEST" --help`) that cleanly detect any libc incompatibility and offer instant native source build commands.
+* **Key Takeaway:** Never distribute PyInstaller binaries built on cutting-edge rolling distributions. Always compile release artifacts on the lowest supported LTS base (or a `manylinux` container) to ensure broad downstream glibc compatibility.
+

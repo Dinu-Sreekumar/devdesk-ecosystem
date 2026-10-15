@@ -64,7 +64,7 @@ flowchart TD
 
 ## 2. Compatibility & Pre-Flight Verification
 
-DevDesk pre-compiled binaries are statically packed for modern Linux environments running on `x86_64` (glibc 2.31+).
+DevDesk pre-compiled binaries are statically packed for modern Linux environments running on `x86_64` (glibc 2.35+).
 
 ### Compatibility Matrix
 
@@ -84,7 +84,7 @@ uname -sm && (command -v ldd >/dev/null 2>&1 && ldd --version | head -n1 || echo
 * **Expected Output:**
   ```text
   Linux x86_64
-  ldd (GNU libc) 2.34 (or newer)
+  ldd (GNU libc) 2.35 (or newer)
   ```
 
 ---

@@ -112,9 +112,20 @@ for BIN in "${BINARIES[@]}"; do
         echo ""
         echo "  git clone https://github.com/${REPO}.git"
         echo "  cd devdesk-ecosystem"
-        echo "  make build"
+        echo "  make setup && make build"
         echo "  ./scripts/install.sh"
         echo ""
+        exit 1
+    fi
+
+    # Post-install verification smoke test
+    if ! "$DEST" --help >/dev/null 2>&1; then
+        echo -e "      ${RED}❌ Execution check failed for $BIN.${NC}"
+        echo -e "      ${YELLOW}Your system's C library (glibc/musl) appears incompatible with this pre-compiled binary.${NC}"
+        echo "      To build natively from source for your exact system:"
+        echo "        git clone https://github.com/${REPO}.git"
+        echo "        cd devdesk-ecosystem"
+        echo "        make setup && make build && make install"
         exit 1
     fi
 done
